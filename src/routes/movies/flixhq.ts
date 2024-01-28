@@ -214,7 +214,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
         update: {
           title: res.title as string,
           image: res.image as string,
-          coverImage: res.image as string,
+          coverImage: res.cover as string,
           description: res.description as string,
           production: res.production as string,
           country: res.country as string,
