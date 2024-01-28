@@ -1,46 +1,65 @@
 import { FastifyRequest, FastifyReply, FastifyInstance, RegisterOptions } from 'fastify';
 import { ANIME } from '@consumet/extensions';
 import { StreamingServers } from '@consumet/extensions/dist/models';
+import cache from '../../utils/cache'; // Import your cache utility
+import { Redis } from 'ioredis';
+import { redis } from '../../main';
 
 const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
   const gogoanime = new ANIME.Gogoanime();
+  //const redisClient = new Redis(); // Create a Redis client instance
+  const TTL = 3;
 
-  fastify.get('/', (_, rp) => {
-    rp.status(200).send({
-      intro:
-        "Welcome to the gogoanime provider: check out the provider's website @ https://www1.gogoanime.bid/",
-      routes: [
-        '/:query',
-        '/info/:id',
-        '/watch/:episodeId',
-        '/servers/:episodeId',
-        '/genre/:genre',
-        '/genre/list',
-        '/top-airing',
-        '/movies',
-        '/popular',
-        '/recent-episodes',
-      ],
-      documentation: 'https://docs.consumet.org/#tag/gogoanime',
-    });
-  });
-
-  fastify.get('/:query', async (request: FastifyRequest, reply: FastifyReply) => {
-    const query = (request.params as { query: string }).query;
+  fastify.get('/', async (request, reply) => {
+    const query = (request.query as { query?: string }).query;
     const page = (request.query as { page: number }).page || 1;
 
-    const res = await gogoanime.search(query, page);
+    const status = (request.query as { status?: string[] }).status;
+    const genre = (request.query as { genre?: string[] }).genre;
+    const sort = (request.query as { sort?: string }).sort;
+    const type = (request.query as { type?: string[] }).type;
+    const year = (request.query as { year?: string[] }).year;
+    const country = (request.query as { country?: string[] }).country;
 
-    reply.status(200).send(res);
+    try {
+      const cacheKey = `gogoanime:search:${query}:${page}:${status}:${genre}:${sort}:${type}:${year}:${country}`;
+      const res = await cache.fetch(
+        redis as Redis,
+        cacheKey,
+        async () =>
+          await gogoanime.search(
+            query,
+            page,
+            status,
+            genre,
+            sort,
+            type,
+            year,
+            country
+          ),
+        60 * 60 * TTL // Set expiry to TTL hours
+      );
+      reply.status(200).send(res);
+    } catch (error) {
+      if (error instanceof Error) {
+        reply.status(500).send({ message: error.message });
+      } else {
+        reply.status(500).send({ message: 'An unknown error occurred' });
+      }
+    }
   });
 
   fastify.get('/info/:id', async (request: FastifyRequest, reply: FastifyReply) => {
     const id = decodeURIComponent((request.params as { id: string }).id);
 
     try {
-      const res = await gogoanime
-        .fetchAnimeInfo(id)
-        .catch((err) => reply.status(404).send({ message: err }));
+      const cacheKey = `gogoanime:info:${id}`;
+      const res = await cache.fetch(
+        redis as Redis,
+        cacheKey,
+        async () => await gogoanime.fetchAnimeInfo(id),
+        60 * 60 * TTL // Set expiry to TTL hours
+      );
 
       reply.status(200).send(res);
     } catch (err) {
@@ -55,9 +74,14 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
     const page = (request.query as { page: number }).page;
 
     try {
-      const res = await gogoanime
-        .fetchGenreInfo(genre, page)
-        .catch((err) => reply.status(404).send({ message: err }));
+      const cacheKey = `gogoanime:genre:${genre}:${page}`;
+      const res = await cache.fetch(
+        redis as Redis,
+        cacheKey,
+        async () => await gogoanime.fetchGenreInfo(genre, page),
+        60 * 60 * TTL // Set expiry to TTL hours
+      );
+
       reply.status(200).send(res);
     } catch {
       reply
@@ -68,9 +92,14 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
 
   fastify.get('/genre/list', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const res = await gogoanime
-        .fetchGenreList()
-        .catch((err) => reply.status(404).send({ message: err }));
+      const cacheKey = `gogoanime:genre:list`;
+      const res = await cache.fetch(
+        redis as Redis,
+        cacheKey,
+        async () => await gogoanime.fetchGenreList(),
+        60 * 60 * TTL // Set expiry to TTL hours
+      );
+
       reply.status(200).send(res);
     } catch {
       reply
@@ -90,9 +119,13 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       }
 
       try {
-        const res = await gogoanime
-          .fetchEpisodeSources(episodeId, server)
-          .catch((err) => reply.status(404).send({ message: err }));
+        const cacheKey = `gogoanime:watch:${episodeId}:${server}`;
+        const res = await cache.fetch(
+          redis as Redis,
+          cacheKey,
+          async () => await gogoanime.fetchEpisodeSources(episodeId, server),
+          60 * 60 * TTL // Set expiry to TTL hours
+        );
 
         reply.status(200).send(res);
       } catch (err) {
@@ -100,7 +133,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
           .status(500)
           .send({ message: 'Something went wrong. Please try again later.' });
       }
-    },
+    }
   );
 
   fastify.get(
@@ -109,9 +142,13 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       const episodeId = (request.params as { episodeId: string }).episodeId;
 
       try {
-        const res = await gogoanime
-          .fetchEpisodeServers(episodeId)
-          .catch((err) => reply.status(404).send({ message: err }));
+        const cacheKey = `gogoanime:servers:${episodeId}`;
+        const res = await cache.fetch(
+          redis as Redis,
+          cacheKey,
+          async () => await gogoanime.fetchEpisodeServers(episodeId),
+          60 * 60 * TTL // Set expiry to TTL hours
+        );
 
         reply.status(200).send(res);
       } catch (err) {
@@ -119,14 +156,20 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
           .status(500)
           .send({ message: 'Something went wrong. Please try again later.' });
       }
-    },
+    }
   );
 
   fastify.get('/top-airing', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const page = (request.query as { page: number }).page;
 
-      const res = await gogoanime.fetchTopAiring(page);
+      const cacheKey = `gogoanime:top-airing:${page}`;
+      const res = await cache.fetch(
+        redis as Redis,
+        cacheKey,
+        async () => await gogoanime.fetchTopAiring(page),
+        60 * 60 * TTL // Set expiry to TTL hours
+      );
 
       reply.status(200).send(res);
     } catch (err) {
@@ -140,7 +183,13 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
     try {
       const page = (request.query as { page: number }).page;
 
-      const res = await gogoanime.fetchRecentMovies(page);
+      const cacheKey = `gogoanime:movies:${page}`;
+      const res = await cache.fetch(
+        redis as Redis,
+        cacheKey,
+        async () => await gogoanime.fetchRecentMovies(page),
+        60 * 60 * TTL // Set expiry to TTL hours
+      );
 
       reply.status(200).send(res);
     } catch (err) {
@@ -154,7 +203,13 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
     try {
       const page = (request.query as { page: number }).page;
 
-      const res = await gogoanime.fetchPopular(page);
+      const cacheKey = `gogoanime:popular:${page}`;
+      const res = await cache.fetch(
+        redis as Redis,
+        cacheKey,
+        async () => await gogoanime.fetchPopular(page),
+        60 * 60 * TTL // Set expiry to TTL hours
+      );
 
       reply.status(200).send(res);
     } catch (err) {
@@ -171,7 +226,13 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
         const type = (request.query as { type: number }).type;
         const page = (request.query as { page: number }).page;
 
-        const res = await gogoanime.fetchRecentEpisodes(page, type);
+        const cacheKey = `gogoanime:recent-episodes:${type}:${page}`;
+        const res = await cache.fetch(
+          redis as Redis,
+          cacheKey,
+          async () => await gogoanime.fetchRecentEpisodes(page, type),
+          60 * 60 * TTL // Set expiry to TTL hours
+        );
 
         reply.status(200).send(res);
       } catch (err) {
@@ -179,7 +240,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
           .status(500)
           .send({ message: 'Something went wrong. Contact developers for help.' });
       }
-    },
+    }
   );
 };
 

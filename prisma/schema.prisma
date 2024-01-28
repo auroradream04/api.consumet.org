@@ -1,0 +1,89 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Movie {
+  id          String       @id @default(uuid())
+  mediaId     String       @unique
+  title       String
+  image       String       @db.VarChar(500)
+  type        String?
+  coverImage  String?      @db.VarChar(500)
+  description String?      @db.VarChar(1000)
+  production  String?
+  country     String?
+  duration    String?
+  rating      Float?
+  releaseDate String?
+  genres      MovieGenre[]
+  casts       MovieCast[]
+  tags        MovieTag[]
+  episodes    Episode[] // Add episodes relation
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Episode {
+  id        String            @id @default(uuid())
+  episodeId String            @unique
+  title     String
+  sources   EpisodeSource[]
+  subtitle  EpisodeSubtitle[]
+  movie     Movie             @relation(fields: [movieId], references: [id]) // Add movie relation
+  movieId   String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model MovieGenre {
+  id        String   @id @default(uuid())
+  genre     String
+  Movies    Movie[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MovieCast {
+  id        String   @id @default(uuid())
+  cast      String
+  Movies    Movie[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MovieTag {
+  id        String   @id @default(uuid())
+  tag       String
+  Movies    Movie[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EpisodeSource {
+  id        String   @id @default(uuid())
+  url       String   @unique @db.VarChar(500)
+  quality   String
+  Episode   Episode  @relation(fields: [episodeId], references: [id])
+  episodeId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EpisodeSubtitle {
+  id        String   @id @default(uuid())
+  url       String   @unique @db.VarChar(500)
+  language  String
+  Episode   Episode  @relation(fields: [episodeId], references: [id])
+  episodeId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
