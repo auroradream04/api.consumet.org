@@ -209,80 +209,114 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       reply.status(200).send(res);
 
       try {
-      const movie = await prisma.movie.upsert({
-        where: { mediaId: res.id },
-        update: {
-          title: res.title as string,
-          image: res.image as string,
-          coverImage: res.cover as string,
-          description: res.description as string,
-          production: res.production as string,
-          country: res.country as string,
-          genres: {
-            create: (res.genres ?? []).map((genre: string) => ({ genre: genre })),
-          },
-          casts: {
-            create: (res.casts ?? []).map((cast: string) => ({ cast: cast })),
-          },
-          tags: {
-            create: (res.tags ?? []).map((tag: string) => ({ tag: tag })),
-          },
-          rating: res.rating,
-          releaseDate: res.releaseDate as string,
-          duration: res.duration as string,
-          type: res.type as string,
-        },
-        create: {
-          mediaId: res.id,
-          title: res.title as string,
-          image: res.image as string,
-          coverImage: res.image as string,
-          description: res.description as string,
-          production: res.production as string,
-          country: res.country as string,
-          genres: {
-            create: (res.genres ?? []).map((genre: string) => ({ genre: genre })),
-          },
-          casts: {
-            create: (res.casts ?? []).map((cast: string) => ({ cast: cast })),
-          },
-          tags: {
-            create: (res.tags ?? []).map((tag: string) => ({ tag: tag })),
-          },
-          rating: res.rating,
-          releaseDate: res.releaseDate as string,
-          duration: res.duration as string,
-          type: res.type as string,
-        },
-      });
+        const genres = await Promise.all(
+          (res.genres ?? []).map((genre: string) =>
+            prisma.movieGenre.upsert({
+              where: { genre: genre },
+              update: { genre: genre },
+              create: { genre: genre },
+            })
+          )
+        );
 
-      await Promise.all(
-        (res.episodes ?? []).map(async (ep) => {
-          try {
-           // console.log(`Upserting episode [INFO ROUTE]: ${ep.id}`)
-            await prisma.episode.upsert({
-              where: { episodeId: ep.id },
-              update: {
-                movieId: movie.id,
-                title: ep.title
-              },
-              create: {
-                movieId: movie.id,
-                episodeId: ep.id,
-                title: ep.title
-              }
-            });
-          } catch (error) {
-            console.log(error)
-            console.error(`Failed to upsert episode: ${ep.id}`);
-            console.error(error);
-          }
-        })
-      );
+        // Upsert the casts
+        const casts = await Promise.all(
+          (res.casts ?? []).map((cast: string) =>
+            prisma.movieCast.upsert({
+              where: { cast: cast },
+              update: { cast: cast },
+              create: { cast: cast },
+            })
+          )
+        );
+
+        // Upsert the tags
+        const tags = await Promise.all(
+          (res.tags ?? []).map((tag: string) =>
+            prisma.movieTag.upsert({
+              where: { tag: tag },
+              update: { tag: tag },
+              create: { tag: tag },
+            })
+          )
+        );
+
+        const movie = await prisma.movie.upsert({
+          where: { mediaId: res.id },
+          update: {
+            title: res.title as string,
+            image: res.image as string,
+            coverImage: res.cover as string,
+            description: res.description as string,
+            production: res.production as string,
+            country: res.country as string,
+            rating: res.rating,
+            releaseDate: res.releaseDate as string,
+            duration: res.duration as string,
+            type: res.type as string,
+            genres: {
+              connect: genres.map((genre) => ({ id: genre.id })),
+            },
+            casts: {
+              connect: casts.map((cast) => ({ id: cast.id })),
+            },
+            tags: {
+              connect: tags.map((tag) => ({ id: tag.id })),
+            },
+            
+          },
+          create: {
+            mediaId: res.id,
+            title: res.title as string,
+            image: res.image as string,
+            coverImage: res.image as string,
+            description: res.description as string,
+            production: res.production as string,
+            country: res.country as string,
+            rating: res.rating,
+            releaseDate: res.releaseDate as string,
+            duration: res.duration as string,
+            type: res.type as string,
+            genres: {
+              connect: genres.map((genre) => ({ id: genre.id })),
+            },
+            casts: {
+              connect: casts.map((cast) => ({ id: cast.id })),
+            },
+            tags: {
+              connect: tags.map((tag) => ({ id: tag.id })),
+            },
+          },
+        });
+
+        await Promise.all(
+          (res.episodes ?? []).map(async (ep) => {
+            try {
+              // console.log(`Upserting episode [INFO ROUTE]: ${ep.id}`)
+              await prisma.episode.upsert({
+                where: { episodeId: ep.id },
+                update: {
+                  movieId: movie.id,
+                  title: ep.title
+                },
+                create: {
+                  movieId: movie.id,
+                  episodeId: ep.id,
+                  title: ep.title
+                }
+              });
+            } catch (error) {
+              console.log(error)
+              console.error(`Failed to upsert episode: ${ep.id}`);
+              console.error(error);
+            }
+          })
+        );
       } catch (error) {
         console.error('Failed to upsert movie:', error);
         reply.status(500).send({
-          message: 'Something went wrong. Please try again later or contact the developers.',})
+          message: 'Something went wrong. Please try again later or contact the developers.',
+        })
       }
 
 
@@ -325,7 +359,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
         where: { episodeId: episodeId }
       })
 
-    
+
       await Promise.all(
         res.sources.map(async (source) => {
           try {
@@ -345,7 +379,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
           } catch (error) {
             console.error(error);
           }
-        }) 
+        })
       );
 
 
@@ -374,10 +408,10 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       reply
         .status(500)
         .send({ message: 'Something went wrong. Please try again later.' });
-        console.error(err);
+      console.error(err);
     }
 
-    
+
   });
 
   fastify.get('/servers', async (request: FastifyRequest, reply: FastifyReply) => {

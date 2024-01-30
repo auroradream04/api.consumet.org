@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -23,67 +20,72 @@ model Movie {
   duration    String?
   rating      Float?
   releaseDate String?
-  genres      MovieGenre[]
-  casts       MovieCast[]
-  tags        MovieTag[]
-  episodes    Episode[] // Add episodes relation
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  episodes    Episode[]
+  casts       MovieCast[]  @relation("MovieToMovieCast")
+  genres      MovieGenre[] @relation("MovieToMovieGenre")
+  tags        MovieTag[]   @relation("MovieToMovieTag")
 }
 
 model Episode {
   id        String            @id @default(uuid())
-  episodeId String            @unique
-  title     String
-  sources   EpisodeSource[]
-  subtitle  EpisodeSubtitle[]
-  movie     Movie             @relation(fields: [movieId], references: [id]) // Add movie relation
   movieId   String
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
+  episodeId String            @unique
+  title     String
+  movie     Movie             @relation(fields: [movieId], references: [id])
+  sources   EpisodeSource[]
+  subtitle  EpisodeSubtitle[]
+
+  @@index([movieId], map: "Episode_movieId_fkey")
 }
 
 model MovieGenre {
   id        String   @id @default(uuid())
-  genre     String
-  Movies    Movie[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  genre     String   @unique
+  Movies    Movie[]  @relation("MovieToMovieGenre")
 }
 
 model MovieCast {
   id        String   @id @default(uuid())
-  cast      String
-  Movies    Movie[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  cast      String   @unique
+  Movies    Movie[]  @relation("MovieToMovieCast")
 }
 
 model MovieTag {
   id        String   @id @default(uuid())
-  tag       String
-  Movies    Movie[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  tag       String   @unique
+  Movies    Movie[]  @relation("MovieToMovieTag")
 }
 
 model EpisodeSource {
   id        String   @id @default(uuid())
   url       String   @unique @db.VarChar(500)
   quality   String
-  Episode   Episode  @relation(fields: [episodeId], references: [id])
-  episodeId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  episodeId String
+  Episode   Episode  @relation(fields: [episodeId], references: [id])
+
+  @@index([episodeId], map: "EpisodeSource_episodeId_fkey")
 }
 
 model EpisodeSubtitle {
   id        String   @id @default(uuid())
   url       String   @unique @db.VarChar(500)
   language  String
-  Episode   Episode  @relation(fields: [episodeId], references: [id])
-  episodeId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  episodeId String
+  Episode   Episode  @relation(fields: [episodeId], references: [id])
+
+  @@index([episodeId], map: "EpisodeSubtitle_episodeId_fkey")
 }
