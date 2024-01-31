@@ -6,14 +6,12 @@ import cache from '../../utils/cache';
 import { redis } from '../../main';
 import { Redis } from 'ioredis';
 
-import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
-import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 
+import prisma from '../../utils/prisma';
 
-const prisma = new PrismaClient();
 //
 
 //DOWNLAODING IMAGES
