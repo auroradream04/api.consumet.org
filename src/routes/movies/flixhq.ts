@@ -12,6 +12,7 @@ import sharp from 'sharp';
 
 import prisma from '../../utils/prisma';
 
+axios.defaults.maxContentLength = 500000000; // 500MB
 //
 
 //DOWNLAODING IMAGES
@@ -29,8 +30,10 @@ const downloadAndConvertImage = async (url: string, imagePath: string) => {
       .toFile(imagePath);
 
     console.log(`Downloaded and converted image: ${imagePath}`);
+    return true;
   } catch (error) {
     console.error("Error in downloading or converting image: ", error);
+    return false;
   }
 };
 
@@ -235,116 +238,121 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       const imageUrls = [res.image, res.cover];
       const targetFolders = ["/var/www/sports008.com/images/poster", "/var/www/sports008.com/images/cover"];
       const imageName = res.id.replace(/[^a-zA-Z0-9]/g, '_') + '.webp';
+      let converted;
 
       imageUrls.forEach(async (url, index) => {
         const imagePath = path.join(targetFolders[index], imageName);
-        await downloadAndConvertImage(url ?? '', imagePath);
+        converted = await downloadAndConvertImage(url ?? '', imagePath);
       });
 
       try {
-        const genres = await Promise.all(
-          (res.genres ?? []).map((genre: string) =>
-            prisma.movieGenre.upsert({
-              where: { genre: genre },
-              update: { genre: genre },
-              create: { genre: genre },
-            })
-          )
-        );
-
-        // Upsert the casts
-        const casts = await Promise.all(
-          (res.casts ?? []).map((cast: string) =>
-            prisma.movieCast.upsert({
-              where: { cast: cast },
-              update: { cast: cast },
-              create: { cast: cast },
-            })
-          )
-        );
-
-        // Upsert the tags
-        const tags = await Promise.all(
-          (res.tags ?? []).map((tag: string) =>
-            prisma.movieTag.upsert({
-              where: { tag: tag },
-              update: { tag: tag },
-              create: { tag: tag },
-            })
-          )
-        );
-
-        const movie = await prisma.movie.upsert({
-          where: { mediaId: res.id },
-          update: {
-            title: res.title as string,
-            image: `https://sports008.com/images/poster/${imageName}` as string,
-            coverImage: `https://sports008.com/images/cover/${imageName}` as string,
-            description: res.description as string,
-            production: res.production as string,
-            country: res.country as string,
-            rating: res.rating,
-            releaseDate: res.releaseDate as string,
-            duration: res.duration as string,
-            type: res.type as string,
-            genres: {
-              connect: genres.map((genre) => ({ id: genre.id })),
+        let movie: { id: any; mediaId?: string; title?: string; image?: string; type?: string | null; coverImage?: string | null; description?: string | null; production?: string | null; country?: string | null; duration?: string | null; rating?: number | null; releaseDate?: string | null; createdAt?: Date; updatedAt?: Date; };
+        if (converted) {
+          console.log(`Upserting movie [INFO ROUTE]: ${res.id}`)
+          movie = await prisma.movie.upsert({
+            where: { mediaId: res.id },
+            update: {
+              title: res.title as string,
+              description: res.description as string,
+              image: `https://sports008.com/images/poster/${imageName}` as string,
+              coverImage: `https://sports008.com/images/cover/${imageName}` as string,
+              production: res.production as string,
+              country: res.country as string,
+              rating: res.rating,
+              releaseDate: res.releaseDate as string,
+              duration: res.duration as string,
+              type: res.type as string,
+              genres: {
+                connect: genres.map((genre) => ({ id: genre.id })),
+              },
+              casts: {
+                connect: casts.map((cast) => ({ id: cast.id })),
+              },
+              tags: {
+                connect: tags.map((tag) => ({ id: tag.id })),
+              },
             },
-            casts: {
-              connect: casts.map((cast) => ({ id: cast.id })),
+            create: {
+              mediaId: res.id,
+              title: res.title as string,
+              image: `https://sports008.com/images/poster/${imageName}` as string,
+              coverImage: `https://sports008.com/images/cover/${imageName}` as string,
+              description: res.description as string,
+              production: res.production as string,
+              country: res.country as string,
+              rating: res.rating,
+              releaseDate: res.releaseDate as string,
+              duration: res.duration as string,
+              type: res.type as string,
+              genres: {
+                connect: genres.map((genre) => ({ id: genre.id })),
+              },
+              casts: {
+                connect: casts.map((cast) => ({ id: cast.id })),
+              },
+              tags: {
+                connect: tags.map((tag) => ({ id: tag.id })),
+              },
             },
-            tags: {
-              connect: tags.map((tag) => ({ id: tag.id })),
-            },
-
-          },
-          create: {
-            mediaId: res.id,
-            title: res.title as string,
-            image: `https://sports008.com/images/poster/${imageName}` as string,
-            coverImage: `https://sports008.com/images/cover/${imageName}` as string,
-            description: res.description as string,
-            production: res.production as string,
-            country: res.country as string,
-            rating: res.rating,
-            releaseDate: res.releaseDate as string,
-            duration: res.duration as string,
-            type: res.type as string,
-            genres: {
-              connect: genres.map((genre) => ({ id: genre.id })),
-            },
-            casts: {
-              connect: casts.map((cast) => ({ id: cast.id })),
-            },
-            tags: {
-              connect: tags.map((tag) => ({ id: tag.id })),
-            },
-          },
-        });
-
-        await Promise.all(
-          (res.episodes ?? []).map(async (ep) => {
-            try {
-              // console.log(`Upserting episode [INFO ROUTE]: ${ep.id}`)
-              await prisma.episode.upsert({
-                where: { episodeId: ep.id },
-                update: {
-                  movieId: movie.id,
-                  title: ep.title
-                },
-                create: {
-                  movieId: movie.id,
-                  episodeId: ep.id,
-                  title: ep.title
-                }
-              });
-            } catch (error) {
-              console.log(error)
-              console.error(`Failed to upsert episode: ${ep.id}`);
-              console.error(error);
-            }
           })
-        );
+
+          await Promise.all(
+            (res.episodes ?? []).map(async (ep) => {
+              try {
+                // console.log(`Upserting episode [INFO ROUTE]: ${ep.id}`)
+                await prisma.episode.upsert({
+                  where: { episodeId: ep.id },
+                  update: {
+                    movieId: movie.id,
+                    title: ep.title
+                  },
+                  create: {
+                    movieId: movie.id,
+                    episodeId: ep.id,
+                    title: ep.title
+                  }
+                });
+              } catch (error) {
+                console.log(error)
+                console.error(`Failed to upsert episode: ${ep.id}`);
+                console.error(error);
+              }
+            })
+          );
+
+          const genres = await Promise.all(
+            (res.genres ?? []).map((genre: string) =>
+              prisma.movieGenre.upsert({
+                where: { genre: genre },
+                update: { genre: genre },
+                create: { genre: genre },
+              })
+            )
+          );
+  
+          // Upsert the casts
+          const casts = await Promise.all(
+            (res.casts ?? []).map((cast: string) =>
+              prisma.movieCast.upsert({
+                where: { cast: cast },
+                update: { cast: cast },
+                create: { cast: cast },
+              })
+            )
+          );
+  
+          // Upsert the tags
+          const tags = await Promise.all(
+            (res.tags ?? []).map((tag: string) =>
+              prisma.movieTag.upsert({
+                where: { tag: tag },
+                update: { tag: tag },
+                create: { tag: tag },
+              })
+            )
+          );
+        }
+
       } catch (error) {
         console.error('Failed to upsert movie:', error);
         reply.status(500).send({
