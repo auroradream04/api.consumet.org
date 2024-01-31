@@ -238,12 +238,16 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       const imageUrls = [res.image, res.cover];
       const targetFolders = ["/var/www/sports008.com/images/poster", "/var/www/sports008.com/images/cover"];
       const imageName = res.id.replace(/[^a-zA-Z0-9]/g, '_') + '.webp';
-      let converted;
+      let converted = false;
 
-      imageUrls.forEach(async (url, index) => {
-        const imagePath = path.join(targetFolders[index], imageName);
-        converted = await downloadAndConvertImage(url ?? '', imagePath);
-      });
+      await Promise.all(
+        imageUrls.map(async (url, index) => {
+          const imagePath = path.join(targetFolders[index], imageName);
+          const result = await downloadAndConvertImage(url ?? '', imagePath);
+          result ? converted = true : converted = false;
+        })
+      )
+
 
       try {
         let movie: { id: any; mediaId?: string; title?: string; image?: string; type?: string | null; coverImage?: string | null; description?: string | null; production?: string | null; country?: string | null; duration?: string | null; rating?: number | null; releaseDate?: string | null; createdAt?: Date; updatedAt?: Date; };
@@ -257,7 +261,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
               })
             )
           );
-  
+
           // Upsert the casts
           const casts = await Promise.all(
             (res.casts ?? []).map((cast: string) =>
@@ -268,7 +272,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
               })
             )
           );
-  
+
           // Upsert the tags
           const tags = await Promise.all(
             (res.tags ?? []).map((tag: string) =>
@@ -279,7 +283,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
               })
             )
           );
-          
+
           console.log(`Upserting movie [INFO ROUTE]: ${res.id}`)
           movie = await prisma.movie.upsert({
             where: { mediaId: res.id },
@@ -347,7 +351,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
               } catch (error) {
                 console.log(error)
                 console.error(`Failed to upsert episode: ${ep.id}`);
-                console.error(error); 
+                console.error(error);
               }
             })
           );
