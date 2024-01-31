@@ -233,7 +233,6 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
         )
         : await flixhq.fetchMediaInfo(id);
 
-      reply.status(200).send(res);
 
       const imageUrls = [res.image, res.cover];
       const targetFolders = ["/var/www/sports008.com/images/poster", "/var/www/sports008.com/images/cover"];
@@ -354,6 +353,9 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
           message: 'Something went wrong. Please try again later or contact the developers.',
         })
       }
+
+      reply.status(200).send(res);
+
 
 
     } catch (err) {
