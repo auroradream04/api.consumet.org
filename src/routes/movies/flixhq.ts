@@ -7,9 +7,36 @@ import { redis } from '../../main';
 import { Redis } from 'ioredis';
 
 import { PrismaClient } from '@prisma/client';
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import sharp from 'sharp';
+
 
 const prisma = new PrismaClient();
 //
+
+//DOWNLAODING IMAGES
+const downloadAndConvertImage = async (url: string, imagePath: string) => {
+  try {
+    const response = await axios({
+      url,
+      method: 'GET',
+      responseType: 'arraybuffer'
+    });
+
+    const imageBuffer = Buffer.from(response.data, 'binary');
+    await sharp(imageBuffer)
+      .webp({ quality: 90 })  // You can adjust the quality
+      .toFile(imagePath);
+
+    console.log(`Downloaded and converted image: ${imagePath}`);
+  } catch (error) {
+    console.error("Error in downloading or converting image: ", error);
+  }
+};
+
+
 const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
   const flixhq = new MOVIES.FlixHQ();
 
@@ -208,6 +235,15 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
 
       reply.status(200).send(res);
 
+      const imageUrls = [res.image, res.cover];
+      const targetFolders = ["/var/www/sports008.com/images/poster", "/var/www/sports008.com/images/cover"];
+      const imageName = res.id.replace(/[^a-zA-Z0-9]/g, '_') + '.webp';
+
+      imageUrls.forEach(async (url, index) => {
+        const imagePath = path.join(targetFolders[index], imageName);
+        await downloadAndConvertImage(url ?? '', imagePath);
+      });
+
       try {
         const genres = await Promise.all(
           (res.genres ?? []).map((genre: string) =>
@@ -245,8 +281,8 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
           where: { mediaId: res.id },
           update: {
             title: res.title as string,
-            image: res.image as string,
-            coverImage: res.cover as string,
+            image: `https://sports008.com/images/poster/${imageName}` as string,
+            coverImage: `https://sports008.com/images/cover/${imageName}` as string,
             description: res.description as string,
             production: res.production as string,
             country: res.country as string,
@@ -263,13 +299,13 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
             tags: {
               connect: tags.map((tag) => ({ id: tag.id })),
             },
-            
+
           },
           create: {
             mediaId: res.id,
             title: res.title as string,
-            image: res.image as string,
-            coverImage: res.image as string,
+            image: `https://sports008.com/images/poster/${imageName}` as string,
+            coverImage: `https://sports008.com/images/cover/${imageName}` as string,
             description: res.description as string,
             production: res.production as string,
             country: res.country as string,
