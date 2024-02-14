@@ -7,7 +7,7 @@ import { redis } from '../../main';
 
 const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
   const gogoanime = new ANIME.Gogoanime();
-  //const redisClient = new Redis(); // Create a Redis client instance
+  const redisClient = new Redis(); // Create a Redis client instance
   const TTL = 3;
 
   fastify.get('/', async (request, reply) => {
@@ -24,7 +24,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
     try {
       const cacheKey = `gogoanime:search:${query}:${page}:${status}:${genre}:${sort}:${type}:${year}:${country}`;
       const res = await cache.fetch(
-        redis as Redis,
+        redisClient as Redis,
         cacheKey,
         async () =>
           await gogoanime.search(
@@ -55,7 +55,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
     try {
       const cacheKey = `gogoanime:info:${id}`;
       const res = await cache.fetch(
-        redis as Redis,
+        redisClient as Redis,
         cacheKey,
         async () => await gogoanime.fetchAnimeInfo(id),
         60 * 60 * TTL // Set expiry to TTL hours
@@ -76,7 +76,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
     try {
       const cacheKey = `gogoanime:genre:${genre}:${page}`;
       const res = await cache.fetch(
-        redis as Redis,
+        redisClient as Redis,
         cacheKey,
         async () => await gogoanime.fetchGenreInfo(genre, page),
         60 * 60 * TTL // Set expiry to TTL hours
@@ -94,7 +94,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
     try {
       const cacheKey = `gogoanime:genre:list`;
       const res = await cache.fetch(
-        redis as Redis,
+        redisClient as Redis,
         cacheKey,
         async () => await gogoanime.fetchGenreList(),
         60 * 60 * TTL // Set expiry to TTL hours
@@ -121,7 +121,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       try {
         const cacheKey = `gogoanime:watch:${episodeId}:${server}`;
         const res = await cache.fetch(
-          redis as Redis,
+          redisClient as Redis,
           cacheKey,
           async () => await gogoanime.fetchEpisodeSources(episodeId, server),
           60 * 60 * TTL // Set expiry to TTL hours
@@ -144,7 +144,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       try {
         const cacheKey = `gogoanime:servers:${episodeId}`;
         const res = await cache.fetch(
-          redis as Redis,
+          redisClient as Redis,
           cacheKey,
           async () => await gogoanime.fetchEpisodeServers(episodeId),
           60 * 60 * TTL // Set expiry to TTL hours
@@ -165,7 +165,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
 
       const cacheKey = `gogoanime:top-airing:${page}`;
       const res = await cache.fetch(
-        redis as Redis,
+        redisClient as Redis,
         cacheKey,
         async () => await gogoanime.fetchTopAiring(page),
         60 * 60 * TTL // Set expiry to TTL hours
@@ -185,7 +185,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
 
       const cacheKey = `gogoanime:movies:${page}`;
       const res = await cache.fetch(
-        redis as Redis,
+        redisClient as Redis,
         cacheKey,
         async () => await gogoanime.fetchRecentMovies(page),
         60 * 60 * TTL // Set expiry to TTL hours
@@ -205,7 +205,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
 
       const cacheKey = `gogoanime:popular:${page}`;
       const res = await cache.fetch(
-        redis as Redis,
+        redisClient as Redis,
         cacheKey,
         async () => await gogoanime.fetchPopular(page),
         60 * 60 * TTL // Set expiry to TTL hours
@@ -228,7 +228,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
 
         const cacheKey = `gogoanime:recent-episodes:${type}:${page}`;
         const res = await cache.fetch(
-          redis as Redis,
+          redisClient as Redis,
           cacheKey,
           async () => await gogoanime.fetchRecentEpisodes(page, type),
           60 * 60 * TTL // Set expiry to TTL hours
@@ -242,6 +242,11 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
       }
     }
   );
+
+  // Close the Redis connection when the Fastify app is closed
+  fastify.addHook('onClose', async () => {
+    await redisClient.quit();
+  });
 };
 
 export default routes;
