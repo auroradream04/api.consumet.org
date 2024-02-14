@@ -7,7 +7,7 @@ import { redis } from '../../main';
 
 const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
   const gogoanime = new ANIME.Gogoanime();
-  const redisClient = new Redis(); // Create a Redis client instance
+  const redisClient = redis;
   const TTL = 3;
 
   fastify.get('/', async (request, reply) => {
@@ -245,7 +245,9 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
 
   // Close the Redis connection when the Fastify app is closed
   fastify.addHook('onClose', async () => {
-    await redisClient.quit();
+    if (redisClient) {
+      await redisClient.quit();
+    }
   });
 };
 
